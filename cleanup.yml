@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: calico-node-cleanup
+  namespace: kube-system
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: calico-node-cleanup
+rules:
+  # The CNI cleanup needs to get, list, and delete pods, and list namesapces
+  - apiGroups: [""]
+    resources:
+      - namespaces
+    verbs:
+      - list
+  - apiGroups: [""]
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: calico-node-cleanup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: calico-node-cleanup
+subjects:
+- kind: ServiceAccount
+  name: calico-node-cleanup
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: calico-node-cleanup
+  namespace: kube-system
+  labels:
+    k8s-app: calico-node-cleanup
+spec:
+  selector:
+    matchLabels:
+      k8s-app: calico-node-cleanup
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      name: calico-node-cleanup
+      labels:
+        k8s-app: calico-node-cleanup
+    spec:
+      hostNetwork: true
+      serviceAccountName: calico-node-cleanup
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        # Make sure calico-node-cleanup gets scheduled on all nodes.
+        - effect: NoSchedule
+          operator: Exists
+        # Mark the pod as a critical add-on for rescheduling.
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      terminationGracePeriodSeconds: 0
+      priorityClassName: system-node-critical
+      containers:
+      - name: calico-node-cleanup
+        image: bitnami/kubectl:latest
+        command: ["/bin/bash"]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        args: 
+        - "-c" 
+        - |
+          echo "Starting Calico readiness watch on $NODE_NAME"
+          while true; do
+            CALICO_READY=$(kubectl get pod -l k8s-app=calico-node -n kube-system -o jsonpath="{range .items[*]}{range @.status.conditions[?(@.type=='Ready')]}{@.status}{end}{end}" --field-selector spec.nodeName=$NODE_NAME)
+            if [ -z $CALICO_READY ] || ( [ $CALICO_READY != "True" ] && [ $CALICO_READY != "False" ] ) ; then
+              echo "Cannot parse Calico-node pod readiness, doing nothing"
+              sleep 5
+              continue
+            fi
+            if [ $CALICO_READY == "True" ]; then
+                 sleep 5
+            else
+                 echo "Calico is not ready on $NODE_NAME, wait for ready before cleanup"
+                 sleep 5
+                 while true; do
+                   CALICO_READY=$(kubectl get pod -l k8s-app=calico-node -n kube-system -o jsonpath="{range .items[*]}{range @.status.conditions[?(@.type=='Ready')]}{@.status}{end}{end}" --field-selector spec.nodeName=$NODE_NAME)
+                   if [ $CALICO_READY == "True" ]; then
+                      echo "Calico is ready on $NODE_NAME, delete all non-Calico pods on this node to reset their pod sandbox"
+                      NAMESPACES=$(kubectl get ns -o jsonpath="{@.items[*].metadata.name}")
+                      for ns in $NAMESPACES; do
+                        # Find all pods in this namespace, that are not calico related, on this node, that are not on the host network and are missing a calico annotation
+                        kubectl -n $ns get pod -l k8s-app!=calico-node,k8s-app!=calico-node-cleanup,k8s-app!=calico-typha  --field-selector spec.nodeName=$NODE_NAME -o jsonpath="{range .items[*]}{@.metadata.name}:{@.metadata.annotations}:hostNetwork={@.spec.hostNetwork};{end}" | tr ";" "\n" | grep -v "cni\.projectcalico\.org" | grep -v "hostNetwork=true" | awk 'BEGIN {FS=":"}{print $1}' | xargs kubectl delete -n $ns pod
+                      done 
+                      break
+                   else
+                      sleep 5
+                   fi
+                 done
+            fi
+          done
+
