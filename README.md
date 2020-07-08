@@ -1,6 +1,6 @@
 # Install
 
-These steps show how one can configure Calico Network Policy working with Flannel on PKS (tested on GCP and AWS and Azure).
+These steps show how one can configure Calico Network Policy working with Flannel on Tanzu Kubernetes Grid Integrated Edition (TKGI), formerly known as Enterprise PKS (tested on GCP and AWS and Azure).
 
 1. clone this repo
 
