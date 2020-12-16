@@ -9,6 +9,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: calico-node-cleanup
 rules:
+  - apiGroups:
+    - policy
+    resourceNames:
+    - pks-restricted
+    resources:
+    - podsecuritypolicies
+    verbs:
+    - use
   # The CNI cleanup needs to get, list, and delete pods, and list namesapces
   - apiGroups: [""]
     resources:
