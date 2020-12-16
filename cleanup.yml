@@ -12,7 +12,7 @@ rules:
   - apiGroups:
     - policy
     resourceNames:
-    - pks-restricted
+    - pks-privileged
     resources:
     - podsecuritypolicies
     verbs:
