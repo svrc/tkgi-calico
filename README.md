@@ -33,11 +33,11 @@ These steps show how one can configure Calico Network Policy working with Flanne
 
 1.  For each node you want to swap your CNI from flannel to Calico+Flannel, run `kubectl label <node name> tanzu.vmware.com/calico="true"`.  
 
-This will delete all the pods on that node, and when they're recreated they'll be in recreated in the Calico veth setup.   Most importantly, *there still will be full Pod network connectivity across nodes* even though some are using Calico on Flannel, and others are just using Flannel.
+    This will delete all the pods on that node, and when they're recreated they'll be in recreated in the Calico veth setup.   Most importantly, *there still will be full Pod network connectivity across nodes* even though some are using Calico on Flannel, and others are just using Flannel.
 
 1.  If you do not have [Persistent labels and taints](https://github.com/svrc/tkgi-persistent-taints-labels), once you've applied Calico everywhere, you should  `kubectl apply -f calico.yaml`.   
 
-This will swap the calico-node `nodeSelector` to just look for `kubernetes.io/os=linux` nodes which are always labelled even after upgrades.   
+    This will swap the calico-node `nodeSelector` to just look for `kubernetes.io/os=linux` nodes which are always labelled even after upgrades.   
 
 ## Modifications
 
