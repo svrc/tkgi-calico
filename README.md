@@ -1,3 +1,13 @@
+# Upgrade
+
+(as of June 25, 2021)
+
+Upgrading from Calico 3.13 to 3.19.1 assumes you have minimum TKGI 1.9.  It may work on PKS 1.8 but it's not supported.
+
+1. clone this repo
+1. please read the Calico upgrade docs for **breaking changes** to Host Endpoints.  If you don't use Calico-specific features like Global network policies, this shouldn't apply to you.
+1. `kubectl apply -f calico.yaml` will perform the daemonset upgrade in a rolling fashion
+
 # Install (disruptive)
 
 These steps show how one can configure Calico Network Policy working with Flannel on Tanzu Kubernetes Grid Integrated Edition (TKGI) 1.8+, formerly known as Enterprise PKS (tested on GCP and AWS and Azure).
