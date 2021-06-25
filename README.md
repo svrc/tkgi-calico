@@ -6,8 +6,8 @@ Upgrading from Calico 3.11.2 to 3.19.1 assumes you have minimum TKGI 1.9.  It ma
 
 1. clone this repo
 1. please read the Calico [upgrade docs](https://docs.projectcalico.org/maintenance/kubernetes-upgrade) for **breaking changes** to Host Endpoints.  If you don't use Calico-specific features like Global network policies, this shouldn't apply to you.
-1. `kubectl scale --replicas=2 -n kube-system deploy calico-typha` and scale down Typha to at least 1 less than the number of worker nodes you have, otherwise the rolling deployment won't have room to run, given these pods run on the node's host network and lock their ports.
 1. `kubectl apply -f calico.yaml` will perform the daemonset upgrade in a rolling fashion, this will also scale Typha back up to 3 (you may want to bump it higher for a large cluster)
+1. (optional) `kubectl scale --replicas=2 -n kube-system deploy calico-typha` if you notice Typha's rolling deployment getting stuck.  You will want to scale down Typha to at least 1 less than the number of worker nodes you have, otherwise the rolling deployment won't have room to run, given these pods run on the node's host network and lock their ports.
 
 # Install (disruptive)
 
