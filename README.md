@@ -2,7 +2,7 @@
 
 (as of June 25, 2021)
 
-Upgrading from Calico 3.11.2 to 3.19.1 assumes you have minimum TKGI 1.9.  It may work on PKS 1.8 but it's not supported.
+Upgrading from Calico 3.11.2 to 3.19.1 assumes you have minimum PKS 1.8, though note that Calico 3.19 itself has only been tested on Kubernetes 1.18+ (TKGI 1.9+)
 
 1. clone this repo
 1. please read the Calico [upgrade docs](https://docs.projectcalico.org/maintenance/kubernetes-upgrade) for **breaking changes** to Host Endpoints.  If you don't use Calico-specific features like Global network policies, this shouldn't apply to you.
