@@ -51,7 +51,15 @@ data:
         }
       ]
     }
-
+---
+# TKGI/PKS this is a config map used per daemonseet node to set it to the flannel CIDR
+# This ConfigMap is used to configure a self-hosted Calico installation.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: calico-config-per-node
+  namespace: kube-system
+data: {}  
 ---
 # Source: calico/templates/kdd-crds.yaml
 
@@ -94,9 +102,6 @@ spec:
                 format: int32
                 type: integer
               communities:
-   ---
-# Source: calico/templates/rbac.yaml
-
                 description: Communities is a list of BGP community values and their
                   arbitrary names for tagging routes.
                 items:
@@ -3385,6 +3390,7 @@ rules:
       - configmaps
     verbs:
       - get
+      - patch ### TKGI/PKS: customization needs to update cni config configmap
   - apiGroups: [""]
     resources:
       - nodes/status
@@ -3637,7 +3643,6 @@ spec:
     metadata:
       labels:
         k8s-app: calico-node
-
     spec:
       nodeSelector:
         kubernetes.io/os: linux
@@ -3657,34 +3662,57 @@ spec:
       terminationGracePeriodSeconds: 0
       priorityClassName: system-node-critical
       initContainers:
+        ### TKGI/PKS: custom initialization
+        # This container prepares the CNI config with the host-local flannel setup
+        - name: prepare-cni-config
+          image: bitnami/kubectl:latest
+          command: ["/bin/bash"]
+          args:
+          - "-c"
+          - |
+            . /host/run/flannel/subnet.env
+            export FLANNEL_SUBNET="$(echo ${FLANNEL_SUBNET} | sed 's/1\/24/0\/24/g')"
+            echo "$CNI_NETWORK_CONFIG" | sed s~__FLANNEL_SUBNET__~${FLANNEL_SUBNET}~g | sed s~__CNI_MTU__~${FLANNEL_MTU}~g > /tmp/cniconf
+            kubectl create configmap -n kube-system calico-config-per-node --from-file=cni_network_config=/tmp/cniconf --from-literal=typha_service_name=$TYPHA_SERVICE_NAME --from-literal=veth_mtu=$VETH_MTU --dry-run=client -o yaml | kubectl apply -f -
+          env:
+            # The CNI network config to install on each node.
+            - name: CNI_NETWORK_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: calico-config
+                  key: cni_network_config
+            - name: TYPHA_SERVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: calico-config
+                  key: typha_service_name
+            - name: VETH_MTU
+              valueFrom:
+                configMapKeyRef:
+                  name: calico-config
+                  key: veth_mtu
+          volumeMounts:
+          - mountPath: /host/run/flannel
+            name: flannel-env
         # This container installs the CNI binaries
         # and CNI network config file on each node.
         - name: install-cni
           image: docker.io/calico/cni:v3.19.1
-          command: ["/bin/sh"] ### TKGI/PKS: custom initialization
+          command: ["/opt/cni/bin/install"] ### TKGI/PKS: custom initialization
           envFrom:
           - configMapRef:
               # Allow KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT to be overridden for eBPF mode.
               name: kubernetes-services-endpoint
               optional: true
-          args:
-          - -c
-          - |
-            . /host/run/flannel/subnet.env
-            export FLANNEL_SUBNET="$(echo ${FLANNEL_SUBNET} | sed 's/1\/24/0\/24/g')"
-            export CALICO_IPV4POOL_CIDR="${FLANNEL_NETWORK}"
-            export CNI_NETWORK_CONFIG=$(echo "$CNI_NETWORK_CONFIG2" | sed s~__FLANNEL_SUBNET__~${FLANNEL_SUBNET}~g)
-            export CNI_MTU=$FLANNEL_MTU
-            exec /opt/cni/bin/install
           env:
             # Name of the CNI config file to create.
             - name: CNI_CONF_NAME
               value: "10-calico.conflist"
             # The CNI network config to install on each node.
-            - name: CNI_NETWORK_CONFIG2
+            - name: CNI_NETWORK_CONFIG
               valueFrom:
                 configMapKeyRef:
-                  name: calico-config
+                  name: calico-config-per-node
                   key: cni_network_config
             # Set the hostname based on the k8s node name.
             - name: KUBERNETES_NODE_NAME
@@ -3697,12 +3725,10 @@ spec:
           volumeMounts:
             - mountPath: /host/opt/cni/bin
               name: cni-bin-dir
-            - mountPath: /host/run/flannel
-              name: flannel-env
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
           securityContext:
-            privileged: true
+            privileged: true        
         # Adds a Flex Volume Driver that creates a per-pod Unix Domain Socket to allow Dikastes
         # to communicate with Felix over the Policy Sync API.
         - name: flexvol-driver
@@ -3800,13 +3826,14 @@ spec:
               readOnly: false
             - name: policysync
               mountPath: /var/run/nodeagent
+            # TKGI/PKS calico doesn't currently support eBPF mode, file a Github issue if you want it
             # For eBPF mode, we need to be able to mount the BPF filesystem at /sys/fs/bpf so we mount in the
             # parent directory.
-            - name: sysfs
-              mountPath: /sys/fs/
+            #- name: sysfs
+            #  mountPath: /sys/fs/
               # Bidirectional means that, if we mount the BPF filesystem at /sys/fs/bpf it will propagate to the host.
               # If the host is known to mount that filesystem already then Bidirectional can be omitted.
-              mountPropagation: Bidirectional
+            # mountPropagation: Bidirectional
             - name: cni-log-dir
               mountPath: /var/vcap/data/sys/log/kubelet/
               readOnly: true
@@ -3825,10 +3852,11 @@ spec:
           hostPath:
             path: /run/xtables.lock
             type: FileOrCreate
-        - name: sysfs
-          hostPath:
-            path: /sys/fs/
-            type: DirectoryOrCreate
+        # TKGI/PKS calico doesn't currently support eBPF mode, file a Github issue if you want it
+        #- name: sysfs
+        #  hostPath:
+        #    path: /sys/fs/
+        #    type: DirectoryOrCreate
         # Used to install CNI.
         - name: cni-bin-dir
           hostPath:
