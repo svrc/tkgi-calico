@@ -1,4 +1,8 @@
-# Upgrade
+# Calico CNI for VMware Tanzu
+
+This project enables Calico CNI (policy-only) for VMware Tanzu clusters in Flannel mode.   It is intended to be a bridge to the Antrea release (TKGI 1.10+) which is the ideal target CNI.
+
+## Upgrade
 
 (as of July 8, 2021)
 
@@ -11,7 +15,7 @@ Upgrading from Calico 3.11.2 to 3.19.1 assumes you have minimum PKS 1.8, though 
 1. `kubectl apply -f calico.yaml` will perform the daemonset and typha deployment upgrade in a rolling fashion
 1. (optional) `kubectl scale --replicas=2 -n kube-system deploy calico-typha` if you notice Typha's rolling deployment getting stuck.  You will want to scale down Typha to at least 1 less than the number of worker nodes you have, otherwise the rolling deployment won't have room to run, given these pods run on the node's host network and lock their ports.
 
-# Install (disruptive)
+## Install (disruptive)
 
 These steps show how one can configure Calico Network Policy working with Flannel on Tanzu Kubernetes Grid Integrated Edition (TKGI) 1.8+, formerly known as Enterprise PKS (tested on GCP and AWS and Azure).
 
@@ -29,7 +33,7 @@ These steps show how one can configure Calico Network Policy working with Flanne
 
 1. run through [test_procedure.md](test_procedure.md)
 
-# Install (non-disruptive)
+## Install (non-disruptive)
 
 1. clone this repo
 
