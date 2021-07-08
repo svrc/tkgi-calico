@@ -28,10 +28,9 @@ data:
           "log_file_path": "/var/vcap/sys/log/kubelet/cni.log",          
           "datastore_type": "kubernetes",
           "nodename": "__KUBERNETES_NODE_NAME__",
-          "mtu": __CNI_MTU__,
           "ipam": {
               "type": "host-local",
-              "subnet": "__FLANNEL_SUBNET__"
+              "subnet": "usePodCidr"
           },
           "policy": {
               "type": "k8s"
@@ -51,15 +50,6 @@ data:
         }
       ]
     }
----
-# TKGI/PKS this is a config map used per daemonseet node to set it to the flannel CIDR
-# This ConfigMap is used to configure a self-hosted Calico installation.
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  name: calico-config-per-node
-  namespace: kube-system
-data: {}  
 ---
 # Source: calico/templates/kdd-crds.yaml
 
@@ -3398,7 +3388,6 @@ rules:
       - configmaps
     verbs:
       - get
-      - patch ### TKGI/PKS: customization needs to update cni config configmap
   - apiGroups: [""]
     resources:
       - nodes/status
@@ -3407,6 +3396,12 @@ rules:
       - patch
       # Calico stores some configuration information in node annotations.
       - update
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs:
+      # TKGI/PKS: needed to store podCIDR per node from standalone Flannel
+      - patch
   # Watch for changes to Kubernetes NetworkPolicies.
   - apiGroups: ["networking.k8s.io"]
     resources:
@@ -3680,25 +3675,13 @@ spec:
           - |
             . /host/run/flannel/subnet.env
             export FLANNEL_SUBNET="$(echo ${FLANNEL_SUBNET} | sed 's/1\/24/0\/24/g')"
-            echo "$CNI_NETWORK_CONFIG" | sed s~__FLANNEL_SUBNET__~${FLANNEL_SUBNET}~g | sed s~__CNI_MTU__~${FLANNEL_MTU}~g > /tmp/cniconf
-            kubectl create configmap -n kube-system calico-config-per-node --from-file=cni_network_config=/tmp/cniconf --from-literal=typha_service_name=$TYPHA_SERVICE_NAME --from-literal=veth_mtu=$VETH_MTU --dry-run=client -o yaml | kubectl apply -f -
+            kubectl patch node $KUBERNETES_NODE_NAME -p "{\"spec\": {\"podCIDR\": \"${FLANNEL_SUBNET}\"}}"
           env:
-            # The CNI network config to install on each node.
-            - name: CNI_NETWORK_CONFIG
+            # the node to patch with the flannel pod CIDR 
+            - name: KUBERNETES_NODE_NAME
               valueFrom:
-                configMapKeyRef:
-                  name: calico-config
-                  key: cni_network_config
-            - name: TYPHA_SERVICE_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: calico-config
-                  key: typha_service_name
-            - name: VETH_MTU
-              valueFrom:
-                configMapKeyRef:
-                  name: calico-config
-                  key: veth_mtu
+                fieldRef:
+                  fieldPath: spec.nodeName
           volumeMounts:
           - mountPath: /host/run/flannel
             name: flannel-env
@@ -3720,7 +3703,7 @@ spec:
             - name: CNI_NETWORK_CONFIG
               valueFrom:
                 configMapKeyRef:
-                  name: calico-config-per-node ### TKGI/PKS: custom config-map from init container
+                  name: calico-config ### TKGI/PKS: custom config-map from init container
                   key: cni_network_config
             # Set the hostname based on the k8s node name.
             - name: KUBERNETES_NODE_NAME
@@ -3787,8 +3770,8 @@ spec:
             # The default IPv4 pool to create on startup if none exists. Pod IPs will be
             # chosen from this range. Changing this value after installation will have
             # no effect. This should fall within `--cluster-cidr`.
-            # - name: CALICO_IPV4POOL_CIDR
-            #   value: "192.168.0.0/16"
+            - name: CALICO_IPV4POOL_CIDR
+              value: "10.144.0.0/16"
             # Disable file logging so `kubectl logs` works.
             - name: CALICO_DISABLE_FILE_LOGGING
               value: "true"
