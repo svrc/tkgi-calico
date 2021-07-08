@@ -1,6 +1,8 @@
 # Upgrade
 
-(as of June 25, 2021)
+(as of July 8, 2021)
+
+**Note that versions prior to July 8 had a bug with node IP address assignment, please upgrade to this current release.**
 
 Upgrading from Calico 3.11.2 to 3.19.1 assumes you have minimum PKS 1.8, though note that Calico 3.19 itself has only been tested on Kubernetes 1.18+ (TKGI 1.9+)
 
@@ -15,7 +17,7 @@ These steps show how one can configure Calico Network Policy working with Flanne
 
 1. clone this repo
 
-1. obtain PKS cluster with priveleged containers support enabled
+1. obtain PKS cluster with privileged containers support enabled
     - this is necessary for Calico to be installed on the nodes (otherwise you will receive `The DaemonSet "calico-node" is invalid: spec.template.spec.containers[0].securityContext.privileged: Forbidden: disallowed by cluster policy` error)
     - if you have Pod Security Policy enabled, this should include the `pks-privileged` PSP in its ClusterRole.   Prior versions to 12/15/2020 did not.
 
