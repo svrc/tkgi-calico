@@ -6,7 +6,7 @@ This project enables Calico CNI (policy-only) for VMware Tanzu clusters in Flann
 
 (as of July 8, 2021)
 
-**Note that versions prior to July 8 had a bug with node IP address assignment, please upgrade to this current release.**
+**Note that the upgrade to 3.19.1 prior to July 8 had a bug with node IP address assignment, please upgrade to this current release.**
 
 Upgrading from Calico 3.11.2 to 3.19.1 assumes you have minimum PKS 1.8, though note that Calico 3.19 itself has only been tested on Kubernetes 1.18+ (TKGI 1.9+)
 
